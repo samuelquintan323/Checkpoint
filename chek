@@ -1,16 +1,18 @@
 from collections import deque
+from difflib import get_close_matches
+import json  
 
 # Inventario de productos
-inventario = [
-    {"dato": "Camiseta Negra", "talla": "M", "color": "Negro", "precio": 25000},
-    {"dato": "Jean Azul", "talla": "L", "color": "Azul", "precio": 75000},
-    {"dato": "Sudadera Gris", "talla": "M", "color": "Gris", "precio": 90000},
-    {"dato": "Zapatos Deportivos", "talla": "42", "color": "Blanco", "precio": 150000},
-    {"dato": "Chaqueta Roja", "talla": "L", "color": "Rojo", "precio": 120000},
-    {"dato": "Vestido Verde", "talla": "S", "color": "Verde", "precio": 85000},
-    {"dato": "Gorra Negra", "talla": "Única", "color": "Negro", "precio": 30000},
-]
+def cargar_inventario():
+    try:
+        with open("inventario.json", "r", encoding="utf-8") as archivo:
+            return json.load(archivo)
+    except Exception as e:
+        print("❌ Error al cargar el inventario:", e)
+        return []
 
+# Inventario cargado desde "API local"
+inventario = cargar_inventario()
 # Cola para procesar búsquedas
 cola_busquedas = deque()
 # Pila para almacenar historial
@@ -18,18 +20,30 @@ historial = []
 
 # Función para recomendar ropa según los filtros ingresados por el usuario
 def recomendar_ropa(dato=None, talla=None, color=None):
-    return [articulo for articulo in inventario if 
-            (dato in articulo["dato"].lower() if dato else True) and
-            (articulo["talla"].lower() == talla if talla else True) and
-            (articulo["color"].lower() == color if color else True)]
+    resultados = [
+        articulo for articulo in inventario if 
+        (dato in articulo["dato"].lower() if dato else True) and
+        (articulo["talla"].lower() == talla if talla else True) and
+        (articulo["color"].lower() == color if color else True)
+    ]
+    return sorted(resultados, key=lambda x: x["precio"])
 
-# Procesar la búsqueda de la cola
+# Mostrar sugerencias si no hay resultados
+def sugerencias(dato):
+    nombres = [art["dato"].lower() for art in inventario]
+    coincidencias = get_close_matches(dato, nombres, n=3, cutoff=0.4)
+    if coincidencias:
+        print("\n¿Quisiste decir?:")
+        for sugerencia in coincidencias:
+            print(f"- {sugerencia.title()}")
+
+
 def procesar_busquedas():
     while cola_busquedas:
         entrada = cola_busquedas.popleft()
-        historial.append(entrada)  # Guardar en la pila de historial
-        
-        # Analizar entrada
+        historial.append(entrada)  
+
+        # Análisis de entrada
         palabras = entrada.lower().split()
         colores = {"negro", "azul", "gris", "blanco", "rojo", "verde"}
         tallas = {"s", "m", "l", "xl", "42", "única"}
@@ -41,31 +55,51 @@ def procesar_busquedas():
         resultado = recomendar_ropa(dato, talla, color)
 
         # Mostrar resultados
-        print("\nResultados de búsqueda:")
+        print("\n🔍 Resultados de búsqueda:")
         if resultado:
             for prenda in resultado:
-                print(f"- {prenda['dato']} | Talla: {prenda['talla']} | Color: {prenda['color']} | Precio: ${prenda['precio']}")
+                precio_formateado = f"${prenda['precio']:,}".replace(",", ".")
+                print(f"- {prenda['dato']} | Talla: {prenda['talla']} | Color: {prenda['color']} | Precio: {precio_formateado}")
         else:
             print("No se encontraron resultados.")
+            if dato:
+                sugerencias(dato)
 
-# Mostrar historial (últimas 5 búsquedas)
+# historial (últimas 5 búsquedas)
 def ver_historial():
     print("\nHistorial de búsquedas:")
-    for busqueda in reversed(historial[-5:]):
-        print(f"- {busqueda}")
+    if historial:
+        for busqueda in reversed(historial[-5:]):
+            print(f"- {busqueda}")
+    else:
+        print("No hay búsquedas registradas aún.")
+
+# Mostrar todo el inventario
+def mostrar_inventario():
+    print("\nInventario completo:")
+    for prenda in inventario:
+        precio_formateado = f"${prenda['precio']:,}".replace(",", ".")
+        print(f"- {prenda['dato']} | Talla: {prenda['talla']} | Color: {prenda['color']} | Precio: {precio_formateado}")
 
 # Modo interactivo
 def iniciar():
+    print("\n👕 Bienvenido al buscador de ropa")
     while True:
-        entrada = input("\nBusca una prenda (Ej: 'camiseta negra m') o escribe 'historial' o 'salir': ").lower()
+        entrada = input("\nEscribe tu búsqueda (Ej: 'camiseta negra m') o escribe 'historial', 'inventario' o 'salir': ").lower()
 
         if entrada == "salir":
+            print("Gracias por usar el buscador. ¡Hasta luego!")
             break
         elif entrada == "historial":
             ver_historial()
+        elif entrada == "inventario":
+            mostrar_inventario()
+        elif entrada.strip() == "":
+            print("Por favor, escribe algo para buscar.")
         else:
             cola_busquedas.append(entrada)
             procesar_busquedas()
+
 
 if __name__ == "__main__":
     iniciar()
